@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import re
 from sklearn.manifold import TSNE
 
-# 1. Sample corpus
 corpus = [
     "deep learning improves computer vision and natural language processing",
     "neural networks are powerful tools for artificial intelligence",
@@ -15,44 +14,64 @@ corpus = [
     "computer vision and natural language processing are key ai domains"
 ]
 
-# 2. Preprocessing and vocabulary
-words = re.sub(r"[^a-z\s]", "", " ".join(corpus).lower()).split()
+text = " ".join(corpus).lower()
+text = re.sub(r"[^a-z\s]", "", text)
+words = text.split()
+
 vocab = sorted(set(words))
-word2idx = {w: i for i, w in enumerate(vocab)}
+word2idx = {word: i for i, word in enumerate(vocab)}
+vocab_size = len(vocab)
 
-# 3. Generate Skip-gram pairs
-pairs = [
-    (word2idx[words[i]], word2idx[words[j]])
-    for i in range(len(words))
-    for j in range(max(0, i-2), min(len(words), i+3))
-    if i != j
-]
-x_train, y_train = np.array(pairs).T
-vocab_size, embedding_dim = len(vocab), 8
+pairs = []
 
-# 4. Build and train model
+for i in range(len(words)):
+    for j in range(max(0, i - 2), min(len(words), i + 3)):
+        if i != j:
+            pairs.append((word2idx[words[i]], word2idx[words[j]]))
+
+pairs = np.array(pairs)
+x_train = pairs[:, 0]
+y_train = pairs[:, 1]
+
+embedding_dim = 8
+
 model = models.Sequential([
     layers.Input(shape=(1,)),
-    layers.Embedding(vocab_size, embedding_dim),
+    layers.Embedding(
+        input_dim=vocab_size,
+        output_dim=embedding_dim,
+        name="word_embedding"
+    ),
     layers.Flatten(),
     layers.Dense(vocab_size, activation="softmax")
 ])
 
-model.compile(optimizer="adam", loss="sparse_categorical_crossentropy")
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy"
+)
+
 model.fit(x_train, y_train, epochs=300, verbose=0)
 print("Training complete!")
 
-# 5. Extract embeddings
-embeddings = model.layers[1].get_weights()[0]
+embeddings = model.get_layer("word_embedding").get_weights()[0]
+
+print("\nWord Embeddings (sample):")
 for word, vector in zip(vocab[:10], embeddings[:10]):
     print(f"{word:15s} -> {np.round(vector, 3)}")
 
-# 6. Visualize with t-SNE
-reduced = TSNE(n_components=2, random_state=42, perplexity=5).fit_transform(embeddings)
-plt.figure(figsize=(8, 6))
+reduced = TSNE(
+    n_components=2,
+    random_state=42,
+    perplexity=5
+).fit_transform(embeddings)
+
+plt.figure(figsize=(10, 7))
 plt.scatter(reduced[:, 0], reduced[:, 1])
+
 for i, word in enumerate(vocab):
-    plt.annotate(word, reduced[i] + 0.01)
+    plt.annotate(word, (reduced[i, 0], reduced[i, 1]))
+
 plt.title("Word Embedding Visualization")
 plt.xlabel("Dimension 1")
 plt.ylabel("Dimension 2")
